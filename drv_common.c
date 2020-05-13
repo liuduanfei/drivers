@@ -10,7 +10,6 @@
 
 #include "drv_common.h"
 #include "board.h"
-#include "lvgl/lvgl.h"
 
 #ifdef RT_USING_FINSH
 #include <finsh.h>
@@ -44,8 +43,6 @@ void SysTick_Handler(void)
 
     HAL_IncTick();
     rt_tick_increase();
-
-    lv_tick_inc(1);
 
     /* leave interrupt */
     rt_interrupt_leave();
