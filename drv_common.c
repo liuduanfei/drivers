@@ -119,6 +119,9 @@ RT_WEAK void rt_hw_board_init()
     SCB_EnableDCache();
 #endif
 
+    SCB_EnableDCache();
+    SCB_EnableICache();
+
     /* HAL_Init() function is called at the beginning of the program */
     HAL_Init();
 

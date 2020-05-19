@@ -107,9 +107,9 @@ int ft54x6_init(void)
 
     return 0;
 }
-INIT_ENV_EXPORT(ft54x6_init);
+//INIT_ENV_EXPORT(ft54x6_init);
 
-int ft52x6_pin_init(void)
+int ft54x6_pin_init(void)
 {
     GPIO_InitTypeDef GPIO_Initure;
 
@@ -130,7 +130,7 @@ int ft52x6_pin_init(void)
 
     return 0;
 }
-INIT_BOARD_EXPORT(ft52x6_pin_init);
+//INIT_BOARD_EXPORT(ft54x6_pin_init);
 
 
 
