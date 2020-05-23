@@ -662,7 +662,9 @@ static void wm8978_write_reg(struct rt_i2c_bus_device *dev, rt_uint16_t s_data)
     msg.flags = RT_I2C_WR;
     msg.len = 2;
     msg.buf = send_buffer;
+
     rt_i2c_transfer(dev, &msg, 1);
+
 }
 
 static rt_uint16_t wm8978_read_reg(struct rt_i2c_bus_device *dev, rt_uint16_t reg)

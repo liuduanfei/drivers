@@ -189,9 +189,9 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     /* data pre configuration */
     if (data != RT_NULL)
     {
-#ifdef SCB_EnableDCache
+//#ifdef SCB_EnableDCache
         SCB_CleanInvalidateDCache();
-#endif
+//#endif
         reg_cmd |= SDMMC_CMD_CMDTRANS;
 
         hw_sdio->mask &= ~(SDMMC_MASK_CMDRENDIE | SDMMC_MASK_CMDSENTIE);
@@ -212,15 +212,33 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     /* wait completed */
     rthw_sdio_wait_completed(sdio);
 
+
+    /* Waiting for data to be sent to completion */
+    if (data != RT_NULL)
+    {
+        volatile rt_uint32_t count = 1000000;
+        #define HW_SDIO_DPSMACT                       (0x01U << 12)
+        #define HW_SDIO_CPSMACT                       (0x01U << 13)
+        while (count && (hw_sdio->sta & HW_SDIO_DPSMACT))
+        {
+            count--;
+        }
+        if ((count == 0) || (hw_sdio->sta & SDIO_ERRORS))
+        {
+            cmd->err = -RT_ERROR;
+        }
+    }
+
+
     /* data post configuration */
     if (data != RT_NULL)
     {
         if (data->flags & DATA_DIR_READ)
         {
             rt_memcpy(data->buf, cache_buf, data->blks * data->blksize);
-#ifdef SCB_EnableDCache
+//#ifdef SCB_EnableDCache
             SCB_CleanInvalidateDCache();
-#endif
+//#endif
         }
     }
 }

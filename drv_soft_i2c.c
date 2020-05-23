@@ -86,10 +86,11 @@ int i2c0_register(void)
     i2c0_ops->set_scl = i2c0_set_scl;
     i2c0_ops->get_sda = i2c0_get_sda;
     i2c0_ops->get_scl = i2c0_get_scl;
+//  i2c0_ops->get_scl = RT_NULL;
     i2c0_ops->data = RT_NULL;
     i2c0_ops->delay_us = 0;
     i2c0_ops->udelay = rt_hw_us_delay;
-    i2c0_ops->timeout = 100;
+    i2c0_ops->timeout = 50;
 
     i2c0_bus = rt_malloc(sizeof(struct rt_i2c_bus_device));
     i2c0_bus->priv = i2c0_ops;
@@ -99,8 +100,6 @@ int i2c0_register(void)
     return 0;
 }
 INIT_BOARD_EXPORT(i2c0_register);
-
-struct rt_i2c_bus_device * i2c0;
 
 
 /*
@@ -169,10 +168,11 @@ int i2c2_register(void)
     i2c2_ops->set_scl = i2c2_set_scl;
     i2c2_ops->get_sda = i2c2_get_sda;
     i2c2_ops->get_scl = i2c2_get_scl;
+//        i2c2_ops->get_scl = RT_NULL;
     i2c2_ops->data = RT_NULL;
     i2c2_ops->delay_us = 0;
     i2c2_ops->udelay = rt_hw_us_delay;
-    i2c2_ops->timeout = 100;
+    i2c2_ops->timeout = 50;
 
     i2c2_bus = rt_malloc(sizeof(struct rt_i2c_bus_device));
     i2c2_bus->priv = i2c2_ops;
