@@ -107,8 +107,11 @@ void rt_hw_us_delay(rt_uint32_t us)
 /**
  * This function will initial STM32 board.
  */
-RT_WEAK void rt_hw_board_init()
+void hw_board_init(char *clock_src, int32_t clock_src_freq, int32_t clock_target_freq)
 {
+    extern void rt_hw_systick_init(void);
+    extern void clk_init(char *clk_source, int source_freq, int target_freq);
+
 #ifdef SCB_EnableICache
     /* Enable I-Cache---------------------------------------------------------*/
     SCB_EnableICache();
@@ -119,8 +122,8 @@ RT_WEAK void rt_hw_board_init()
     SCB_EnableDCache();
 #endif
 
-    SCB_EnableDCache();
     SCB_EnableICache();
+    SCB_EnableDCache();
 
     /* HAL_Init() function is called at the beginning of the program */
     HAL_Init();
@@ -128,16 +131,11 @@ RT_WEAK void rt_hw_board_init()
     /* enable interrupt */
     __set_PRIMASK(0);
     /* System clock initialization */
-    SystemClock_Config();
+    clk_init(clock_src, clock_src_freq, clock_target_freq);
     /* disbale interrupt */
     __set_PRIMASK(1);
 
     rt_hw_systick_init();
-
-    /* Heap initialization */
-#if defined(RT_USING_HEAP)
-    rt_system_heap_init((void *)HEAP_BEGIN, (void *)HEAP_END);
-#endif
 
     /* Pin driver initialization is open by default */
 #ifdef RT_USING_PIN
@@ -151,13 +149,4 @@ RT_WEAK void rt_hw_board_init()
     rt_hw_usart_init();
 #endif
 
-    /* Set the shell console output device */
-#if defined(RT_USING_DEVICE) && defined(RT_USING_CONSOLE)
-    rt_console_set_device(RT_CONSOLE_DEVICE_NAME);
-#endif
-
-    /* Board underlying hardware initialization */
-#ifdef RT_USING_COMPONENTS_INIT
-    rt_components_board_init();
-#endif
 }

@@ -1,16 +1,19 @@
 /*
- * Copyright (c) 2006-2018, RT-Thread Development Team
+ * Copyright (c) 2006-2020, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
  * 2018-10-30     SummerGift   first version
+ * 2020-05-23     chenyaxing   modify stm32_uart_config
  */
 
+#include "string.h"
+#include "stdlib.h"
+#include <board.h>
 #include "drv_common.h"
 #include "uart_config.h"
-#include "board.h"
 
 #ifdef RT_USING_SERIAL
 
@@ -32,15 +35,15 @@
 #include <rtdbg.h>
 
 #if defined(SOC_SERIES_STM32F0) || defined(SOC_SERIES_STM32F1) || defined(SOC_SERIES_STM32L4) \
-    || defined(SOC_SERIES_STM32L0) || defined(SOC_SERIES_STM32G0) || defined(SOC_SERIES_STM32G4)
+    || defined(SOC_SERIES_STM32L0) || defined(SOC_SERIES_STM32L1) || defined(SOC_SERIES_STM32G0) || defined(SOC_SERIES_STM32G4)
 #define DMA_INSTANCE_TYPE              DMA_Channel_TypeDef
 #elif defined(SOC_SERIES_STM32F2) || defined(SOC_SERIES_STM32F4) || defined(SOC_SERIES_STM32F7) || defined(SOC_SERIES_STM32H7)
 #define DMA_INSTANCE_TYPE              DMA_Stream_TypeDef
 #endif /*  defined(SOC_SERIES_STM32F1) || defined(SOC_SERIES_STM32L4) */
 
 #if defined(SOC_SERIES_STM32F1) || defined(SOC_SERIES_STM32L4) || defined(SOC_SERIES_STM32F2) \
-    || defined(SOC_SERIES_STM32F4) || defined(SOC_SERIES_STM32L0) || defined(SOC_SERIES_STM32G0) \
-    || defined(SOC_SERIES_STM32G4)
+    || defined(SOC_SERIES_STM32F4) || defined(SOC_SERIES_STM32L0) ||  defined(SOC_SERIES_STM32L1) \
+    || defined(SOC_SERIES_STM32G0) || defined(SOC_SERIES_STM32G4)
 #define UART_INSTANCE_CLEAR_FUNCTION    __HAL_UART_CLEAR_FLAG
 #elif defined(SOC_SERIES_STM32F7) || defined(SOC_SERIES_STM32F0) || defined(SOC_SERIES_STM32H7)
 #define UART_INSTANCE_CLEAR_FUNCTION    __HAL_UART_CLEAR_IT
@@ -82,11 +85,8 @@ struct stm32_uart_config
     struct dma_config *dma_rx;
     struct dma_config *dma_tx;
 #endif
-
-    GPIO_TypeDef *tx_port;
-    GPIO_TypeDef *rx_port;
-    rt_uint32_t tx_pin;
-    rt_uint32_t rx_pin;
+    const char *tx_pin_name;
+    const char *rx_pin_name;
 };
 
 /* stm32 uart dirver class */
@@ -332,11 +332,29 @@ static rt_err_t stm32_gpio_clk_enable(GPIO_TypeDef *gpiox)
     return RT_EOK;
 }
 
+static int up_char(char * c)
+{
+    if ((*c >= 'a') && (*c <= 'z'))
+    {
+        *c = *c - 32;
+    }
+    return 0;
+}
+
+static void get_pin_by_name(const char* pin_name, GPIO_TypeDef **port, uint16_t *pin)
+{
+    int pin_num = atoi((char*) &pin_name[2]);
+    char port_name = pin_name[1];
+    up_char(&port_name);
+    up_char(&port_name);
+    *port = ((GPIO_TypeDef *) ((uint32_t) GPIOA
+            + (uint32_t) (port_name - 'A') * ((uint32_t) GPIOB - (uint32_t) GPIOA)));
+    *pin = (GPIO_PIN_0 << pin_num);
+}
 static uint16_t stm32_get_pin(GPIO_TypeDef *pin_port, rt_uint32_t pin_num)
 {
     return (uint16_t)((16 * (((rt_base_t)pin_port - (rt_base_t)GPIOA_BASE)/(0x0400UL))) + (__rt_ffs(pin_num) - 1));
 }
-
 static rt_err_t stm32_gpio_configure(struct stm32_uart_config *config)
 {
 #define UART_IS_TX        (1U<<7)
@@ -345,7 +363,13 @@ static rt_err_t stm32_gpio_configure(struct stm32_uart_config *config)
     rt_uint16_t tx_pin_num = 0;
     int index = 0, tx_af_num = 0, rx_af_num = 0;
     uint8_t uart_num = 0;
-
+    GPIO_TypeDef *tx_port;
+    GPIO_TypeDef *rx_port;
+    uint16_t tx_pin;
+    uint16_t rx_pin;
+    get_pin_by_name(config->rx_pin_name, &rx_port, &rx_pin);
+    get_pin_by_name(config->tx_pin_name, &tx_port, &tx_pin);
+    
    struct gpio_uart_af {
        /* index get by GET_PIN */
        uint16_t pin_index;
@@ -355,64 +379,64 @@ static rt_err_t stm32_gpio_configure(struct stm32_uart_config *config)
            uint8_t af_num;
        } afs[1];
    };
-   
-   static const struct gpio_uart_af uart_afs[] = 
-   {
-       { .pin_index = GET_PIN(A,  0), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(A,  1), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(A,  2), .afs[0] = {.uart_num = UART_IS_TX|2, .af_num =  7}},
-       { .pin_index = GET_PIN(A,  3), .afs[0] = {.uart_num = UART_IS_RX|2, .af_num =  7}},
-       { .pin_index = GET_PIN(A,  9), .afs[0] = {.uart_num = UART_IS_TX|1, .af_num =  7}},
-       { .pin_index = GET_PIN(A, 10), .afs[0] = {.uart_num = UART_IS_RX|1, .af_num =  7}},
-       { .pin_index = GET_PIN(A, 11), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  6}},
-       { .pin_index = GET_PIN(A, 12), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  6}},
-       { .pin_index = GET_PIN(A, 15), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num = 11}},
-       { .pin_index = GET_PIN(A,  8), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num = 11}},
-       { .pin_index = GET_PIN(B,  4), .afs[0] = {.uart_num = UART_IS_TX|7, .af_num = 11}},
-       { .pin_index = GET_PIN(B,  3), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num = 11}},
-       { .pin_index = GET_PIN(B,  5), .afs[0] = {.uart_num = UART_IS_TX|5, .af_num = 14}},
-       { .pin_index = GET_PIN(B,  6), .afs[0] = {.uart_num = UART_IS_RX|5, .af_num = 14}},
-       { .pin_index = GET_PIN(B,  6), .afs[0] = {.uart_num = UART_IS_TX|1, .af_num =  7}},
-       { .pin_index = GET_PIN(B,  7), .afs[0] = {.uart_num = UART_IS_RX|1, .af_num =  7}},
-       { .pin_index = GET_PIN(B,  9), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(B,  8), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(B, 10), .afs[0] = {.uart_num = UART_IS_TX|3, .af_num =  7}},
-       { .pin_index = GET_PIN(B, 11), .afs[0] = {.uart_num = UART_IS_RX|3, .af_num =  7}},
-       { .pin_index = GET_PIN(B, 13), .afs[0] = {.uart_num = UART_IS_TX|5, .af_num = 14}},
-       { .pin_index = GET_PIN(B, 12), .afs[0] = {.uart_num = UART_IS_RX|5, .af_num = 14}},
-       { .pin_index = GET_PIN(B, 14), .afs[0] = {.uart_num = UART_IS_TX|1, .af_num =  4}},
-       { .pin_index = GET_PIN(B, 15), .afs[0] = {.uart_num = UART_IS_RX|1, .af_num =  4}},
-       { .pin_index = GET_PIN(C,  6), .afs[0] = {.uart_num = UART_IS_TX|6, .af_num =  7}},
-       { .pin_index = GET_PIN(C,  7), .afs[0] = {.uart_num = UART_IS_RX|6, .af_num =  7}},
-       { .pin_index = GET_PIN(C, 10), .afs[0] = {.uart_num = UART_IS_TX|3, .af_num =  7}},
-       { .pin_index = GET_PIN(C, 11), .afs[0] = {.uart_num = UART_IS_RX|3, .af_num =  7}},
-       { .pin_index = GET_PIN(C, 10), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(C, 11), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(C, 12), .afs[0] = {.uart_num = UART_IS_RX|5, .af_num =  8}},
-       { .pin_index = GET_PIN(D,  2), .afs[0] = {.uart_num = UART_IS_TX|5, .af_num =  8}},
-       { .pin_index = GET_PIN(D,  1), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(D,  0), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(D,  5), .afs[0] = {.uart_num = UART_IS_TX|2, .af_num =  7}},
-       { .pin_index = GET_PIN(D,  6), .afs[0] = {.uart_num = UART_IS_RX|2, .af_num =  7}},
-       { .pin_index = GET_PIN(D,  8), .afs[0] = {.uart_num = UART_IS_TX|3, .af_num =  7}},
-       { .pin_index = GET_PIN(D,  9), .afs[0] = {.uart_num = UART_IS_RX|3, .af_num =  7}},
-       { .pin_index = GET_PIN(E,  1), .afs[0] = {.uart_num = UART_IS_TX|8, .af_num =  8}},
-       { .pin_index = GET_PIN(E,  0), .afs[0] = {.uart_num = UART_IS_RX|8, .af_num =  8}},
-       { .pin_index = GET_PIN(E,  8), .afs[0] = {.uart_num = UART_IS_TX|7, .af_num =  7}},
-       { .pin_index = GET_PIN(E,  7), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num =  7}},
-       { .pin_index = GET_PIN(F,  7), .afs[0] = {.uart_num = UART_IS_TX|7, .af_num =  7}},
-       { .pin_index = GET_PIN(F,  6), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num =  7}},
-       { .pin_index = GET_PIN(G, 14), .afs[0] = {.uart_num = UART_IS_TX|6, .af_num =  7}},
-       { .pin_index = GET_PIN(G,  9), .afs[0] = {.uart_num = UART_IS_RX|6, .af_num =  7}},
-       { .pin_index = GET_PIN(H, 13), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(H, 14), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
-       { .pin_index = GET_PIN(G,  8), .afs[0] = {.uart_num = UART_IS_TX|8, .af_num =  8}},
-       { .pin_index = GET_PIN(G,  9), .afs[0] = {.uart_num = UART_IS_RX|8, .af_num =  8}},
-    };
+
+   static const struct gpio_uart_af uart_afs[] =
+     {
+         { .pin_index = GET_PIN(A,  0), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(A,  1), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(A,  2), .afs[0] = {.uart_num = UART_IS_TX|2, .af_num =  7}},
+         { .pin_index = GET_PIN(A,  3), .afs[0] = {.uart_num = UART_IS_RX|2, .af_num =  7}},
+         { .pin_index = GET_PIN(A,  9), .afs[0] = {.uart_num = UART_IS_TX|1, .af_num =  7}},
+         { .pin_index = GET_PIN(A, 10), .afs[0] = {.uart_num = UART_IS_RX|1, .af_num =  7}},
+         { .pin_index = GET_PIN(A, 11), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  6}},
+         { .pin_index = GET_PIN(A, 12), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  6}},
+         { .pin_index = GET_PIN(A, 15), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num = 11}},
+         { .pin_index = GET_PIN(A,  8), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num = 11}},
+         { .pin_index = GET_PIN(B,  4), .afs[0] = {.uart_num = UART_IS_TX|7, .af_num = 11}},
+         { .pin_index = GET_PIN(B,  3), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num = 11}},
+         { .pin_index = GET_PIN(B,  5), .afs[0] = {.uart_num = UART_IS_TX|5, .af_num = 14}},
+         { .pin_index = GET_PIN(B,  6), .afs[0] = {.uart_num = UART_IS_RX|5, .af_num = 14}},
+         { .pin_index = GET_PIN(B,  6), .afs[0] = {.uart_num = UART_IS_TX|1, .af_num =  7}},
+         { .pin_index = GET_PIN(B,  7), .afs[0] = {.uart_num = UART_IS_RX|1, .af_num =  7}},
+         { .pin_index = GET_PIN(B,  9), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(B,  8), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(B, 10), .afs[0] = {.uart_num = UART_IS_TX|3, .af_num =  7}},
+         { .pin_index = GET_PIN(B, 11), .afs[0] = {.uart_num = UART_IS_RX|3, .af_num =  7}},
+         { .pin_index = GET_PIN(B, 13), .afs[0] = {.uart_num = UART_IS_TX|5, .af_num = 14}},
+         { .pin_index = GET_PIN(B, 12), .afs[0] = {.uart_num = UART_IS_RX|5, .af_num = 14}},
+         { .pin_index = GET_PIN(B, 14), .afs[0] = {.uart_num = UART_IS_TX|1, .af_num =  4}},
+         { .pin_index = GET_PIN(B, 15), .afs[0] = {.uart_num = UART_IS_RX|1, .af_num =  4}},
+         { .pin_index = GET_PIN(C,  6), .afs[0] = {.uart_num = UART_IS_TX|6, .af_num =  7}},
+         { .pin_index = GET_PIN(C,  7), .afs[0] = {.uart_num = UART_IS_RX|6, .af_num =  7}},
+         { .pin_index = GET_PIN(C, 10), .afs[0] = {.uart_num = UART_IS_TX|3, .af_num =  7}},
+         { .pin_index = GET_PIN(C, 11), .afs[0] = {.uart_num = UART_IS_RX|3, .af_num =  7}},
+         { .pin_index = GET_PIN(C, 10), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(C, 11), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(C, 12), .afs[0] = {.uart_num = UART_IS_RX|5, .af_num =  8}},
+         { .pin_index = GET_PIN(D,  2), .afs[0] = {.uart_num = UART_IS_TX|5, .af_num =  8}},
+         { .pin_index = GET_PIN(D,  1), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(D,  0), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(D,  5), .afs[0] = {.uart_num = UART_IS_TX|2, .af_num =  7}},
+         { .pin_index = GET_PIN(D,  6), .afs[0] = {.uart_num = UART_IS_RX|2, .af_num =  7}},
+         { .pin_index = GET_PIN(D,  8), .afs[0] = {.uart_num = UART_IS_TX|3, .af_num =  7}},
+         { .pin_index = GET_PIN(D,  9), .afs[0] = {.uart_num = UART_IS_RX|3, .af_num =  7}},
+         { .pin_index = GET_PIN(E,  1), .afs[0] = {.uart_num = UART_IS_TX|8, .af_num =  8}},
+         { .pin_index = GET_PIN(E,  0), .afs[0] = {.uart_num = UART_IS_RX|8, .af_num =  8}},
+         { .pin_index = GET_PIN(E,  8), .afs[0] = {.uart_num = UART_IS_TX|7, .af_num =  7}},
+         { .pin_index = GET_PIN(E,  7), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num =  7}},
+         { .pin_index = GET_PIN(F,  7), .afs[0] = {.uart_num = UART_IS_TX|7, .af_num =  7}},
+         { .pin_index = GET_PIN(F,  6), .afs[0] = {.uart_num = UART_IS_RX|7, .af_num =  7}},
+         { .pin_index = GET_PIN(G, 14), .afs[0] = {.uart_num = UART_IS_TX|6, .af_num =  7}},
+         { .pin_index = GET_PIN(G,  9), .afs[0] = {.uart_num = UART_IS_RX|6, .af_num =  7}},
+         { .pin_index = GET_PIN(H, 13), .afs[0] = {.uart_num = UART_IS_TX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(H, 14), .afs[0] = {.uart_num = UART_IS_RX|4, .af_num =  8}},
+         { .pin_index = GET_PIN(G,  8), .afs[0] = {.uart_num = UART_IS_TX|8, .af_num =  8}},
+         { .pin_index = GET_PIN(G,  9), .afs[0] = {.uart_num = UART_IS_RX|8, .af_num =  8}},
+      };
 
    /* get tx/rx pin index */
    uart_num = config->name[4] - '0';
-   tx_pin_num = stm32_get_pin(config->tx_port, config->tx_pin);
+   tx_pin_num = stm32_get_pin(tx_port, tx_pin);
 
    for (index = 0; index < sizeof(uart_afs) / sizeof(struct gpio_uart_af); index = index + 2)
    {
@@ -430,31 +454,32 @@ static rt_err_t stm32_gpio_configure(struct stm32_uart_config *config)
    GPIO_InitTypeDef GPIO_InitStruct = {0};
 
    /* gpio ports clock enable */
-   stm32_gpio_clk_enable(config->tx_port);
-   if (config->tx_port != config->rx_port)
+   stm32_gpio_clk_enable(tx_port);
+   if (tx_port != rx_port)
    {
-       stm32_gpio_clk_enable(config->rx_port);
+       stm32_gpio_clk_enable(rx_port);
    }
 
     /* rx pin initialize */
-    GPIO_InitStruct.Pin = config->tx_pin;
+    GPIO_InitStruct.Pin = tx_pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 #if defined(SOC_SERIES_STM32L0) || defined(SOC_SERIES_STM32F0) || defined(SOC_SERIES_STM32G0) || defined(SOC_SERIES_STM32H7)
     GPIO_InitStruct.Alternate = tx_af_num;
 #endif
-    HAL_GPIO_Init(config->tx_port, &GPIO_InitStruct);
+    HAL_GPIO_Init(tx_port, &GPIO_InitStruct);
 
     /* rx pin initialize */
-    GPIO_InitStruct.Pin = config->rx_pin;
+    GPIO_InitStruct.Pin = rx_pin;
 #if defined(SOC_SERIES_STM32L0) || defined(SOC_SERIES_STM32F0) || defined(SOC_SERIES_STM32G0) || defined(SOC_SERIES_STM32H7)
     GPIO_InitStruct.Alternate = rx_af_num;
 #endif
-    HAL_GPIO_Init(config->rx_port, &GPIO_InitStruct);
+    HAL_GPIO_Init(rx_port, &GPIO_InitStruct);
 
     return RT_EOK;
 }
+
 
 static struct stm32_uart uart_obj[sizeof(uart_config) / sizeof(uart_config[0])] = {0};
 
