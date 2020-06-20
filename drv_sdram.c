@@ -1,4 +1,14 @@
 /*
+ * Copyright (c) 2006-2020, RT-Thread Development Team
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Change Logs:
+ * Date           Author       Notes
+ * 2020-05-15     liuduanfei   first version
+ */
+
+/*
  * W9825G6KH-6 166MHz/CL3 133MHz/CL2
  *
  *        rcc_hclk3 *
@@ -27,7 +37,8 @@
  */
 #include "board.h"
 #include "drv_sdram.h"
-#include "drv_ltdc.h"
+
+#ifdef BSP_USING_SDRAM
 
 #define DRV_DEBUG
 
@@ -39,7 +50,7 @@
 #endif /* DRV_DEBUG */
 #include <rtdbg.h>
 
-void delay(rt_uint32_t us)
+static void delay(rt_uint32_t us)
 {
     while(us--);
 }
@@ -110,3 +121,5 @@ int sdram_init(void)
 
     return 0;
 }
+
+#endif /* BSP_USING_SDRAM */

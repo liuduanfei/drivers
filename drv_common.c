@@ -11,6 +11,8 @@
 #include "drv_common.h"
 #include "board.h"
 
+#include "lvgl.h"
+
 #ifdef RT_USING_FINSH
 #include <finsh.h>
 static void reboot(uint8_t argc, char **argv)
@@ -40,6 +42,8 @@ void SysTick_Handler(void)
 {
     /* enter interrupt */
     rt_interrupt_enter();
+
+    lv_tick_inc(1000/RT_TICK_PER_SECOND);
 
     HAL_IncTick();
     rt_tick_increase();

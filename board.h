@@ -31,6 +31,8 @@ extern "C"
 
 /*-------------------------- ROM/RAM CONFIG END --------------------------*/
 
+#define MY_DISP_HOR_RES 800
+
 /*-------------------------- CLOCK CONFIG BEGIN --------------------------*/
 
 #define BSP_CLOCK_SOURCE                  ("HSI")
@@ -62,6 +64,10 @@ extern "C"
 #define BSP_UART1_TX_PIN       "PA9"
 #define BSP_UART1_RX_PIN       "PA10"
 
+//#define BSP_USING_UART3
+//#define BSP_UART3_TX_PIN       "PB10"
+//#define BSP_UART3_RX_PIN       "PB11"
+
 /*-------------------------- UART CONFIG END --------------------------*/
 
 /*-------------------------- I2C CONFIG BEGIN --------------------------*/
@@ -78,17 +84,10 @@ extern "C"
  *                             #define BSP_I2C1_SDA_PIN    GET_PIN(port, pin)   ->   GET_PIN(C, 12)
  */
 
-/*#define BSP_USING_I2C1*/
-#ifdef BSP_USING_I2C1
-#define BSP_I2C1_SCL_PIN    GET_PIN(port, pin)
-#define BSP_I2C1_SDA_PIN    GET_PIN(port, pin)
-#endif
+#define BSP_USING_IIC0
 
-/*#define BSP_USING_I2C2*/
-#ifdef BSP_USING_I2C2
-#define BSP_I2C2_SCL_PIN    GET_PIN(port, pin)
-#define BSP_I2C2_SDA_PIN    GET_PIN(port, pin)
-#endif
+#define BSP_USING_IIC2
+
 
 /*-------------------------- I2C CONFIG END --------------------------*/
 
@@ -195,6 +194,31 @@ extern "C"
 
 /*-------------------------- WDT CONFIG END --------------------------*/
 
+/*-------------------------- SDCARD CONFIG BEGIN --------------------------*/
+
+#define BSP_USING_SOUND
+
+/*-------------------------- SDCARD CONFIG END --------------------------*/
+
+/*-------------------------- SDCARD CONFIG BEGIN --------------------------*/
+
+#define BSP_USING_SDCARD
+
+/*-------------------------- SDCARD CONFIG END --------------------------*/
+
+/*-------------------------- SDRAM CONFIG BEGIN --------------------------*/
+
+#define BSP_USING_SDRAM
+
+/*-------------------------- SDRAM CONFIG END --------------------------*/
+
+/*-------------------------- LTDC CONFIG BEGIN --------------------------*/
+
+#define BSP_USING_LTDC
+
+/*-------------------------- LTDC CONFIG END --------------------------*/
+
+
 /*-------------------------- HARDWARE TIMER CONFIG BEGIN --------------------------*/
 
 /** if you want to use hardware timer you can use the following instructions.
@@ -219,6 +243,8 @@ extern "C"
 /*#define BSP_USING_TIM16*/
 /*#define BSP_USING_TIM17*/
 #endif
+
+
 
 /*-------------------------- HAREWARE TIMER CONFIG END --------------------------*/
 

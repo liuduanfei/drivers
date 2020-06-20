@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2006-2020, RT-Thread Development Team
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Change Logs:
+ * Date           Author       Notes
+ * 2020-05-15     liuduanfei   first version
+ */
+
 #include <board.h>
 #include <rtthread.h>
 #include <rthw.h>
@@ -21,6 +31,10 @@
 /*
  * I2C0
  */
+
+#ifdef BSP_USING_IIC0
+
+
 struct rt_i2c_bit_ops *i2c0_ops;
 struct rt_i2c_bus_device *i2c0_bus;
 
@@ -86,7 +100,6 @@ int i2c0_register(void)
     i2c0_ops->set_scl = i2c0_set_scl;
     i2c0_ops->get_sda = i2c0_get_sda;
     i2c0_ops->get_scl = i2c0_get_scl;
-//  i2c0_ops->get_scl = RT_NULL;
     i2c0_ops->data = RT_NULL;
     i2c0_ops->delay_us = 0;
     i2c0_ops->udelay = rt_hw_us_delay;
@@ -101,7 +114,9 @@ int i2c0_register(void)
 }
 INIT_BOARD_EXPORT(i2c0_register);
 
+#endif /* BSP_USING_IIC0 */
 
+#ifdef BSP_USING_IIC2
 /*
  * I2C2
  */
@@ -168,7 +183,6 @@ int i2c2_register(void)
     i2c2_ops->set_scl = i2c2_set_scl;
     i2c2_ops->get_sda = i2c2_get_sda;
     i2c2_ops->get_scl = i2c2_get_scl;
-//        i2c2_ops->get_scl = RT_NULL;
     i2c2_ops->data = RT_NULL;
     i2c2_ops->delay_us = 0;
     i2c2_ops->udelay = rt_hw_us_delay;
@@ -183,5 +197,5 @@ int i2c2_register(void)
 }
 INIT_BOARD_EXPORT(i2c2_register);
 
-
+#endif /* BSP_USING_IIC0 */
 

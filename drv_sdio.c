@@ -5,14 +5,11 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2020-05-23     liuduanfei   first version
+ * 2020-05-15     liuduanfei   first version
  */
 
 #include "board.h"
 #include "drv_sdio.h"
-#include <dfs_fs.h>
-
-//#ifdef BSP_USING_SDMMC
 
 #define DBG_TAG              "drv.sdio"
 #ifdef DRV_DEBUG
@@ -22,8 +19,9 @@
 #endif /* DRV_DEBUG */
 #include <rtdbg.h>
 
+#ifdef BSP_USING_SDCARD
+
 static struct rt_mmcsd_host *host;
-#define SDIO_TX_RX_COMPLETE_TIMEOUT_LOOPS    (100000)
 
 struct sdio_pkg
 {
@@ -151,7 +149,7 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
     }
     else
     {
-        LOG_D("sta:0x%08X send command error = %d", status, cmd->err);
+        LOG_D("send command error = %d", cmd->err);
     }
 }
 
@@ -188,21 +186,23 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
           data ? data->blksize : 0
          );
 
-    hw_sdio->mask = SDIO_MASKR_ALL;
+    hw_sdio->mask |= SDIO_MASKR_ALL;
     reg_cmd = cmd->cmd_code | SDMMC_CMD_CPSMEN;
 
     /* data pre configuration */
     if (data != RT_NULL)
     {
+//#ifdef SCB_EnableDCache
         SCB_CleanInvalidateDCache();
-
+//#endif
         reg_cmd |= SDMMC_CMD_CMDTRANS;
+
         hw_sdio->mask &= ~(SDMMC_MASK_CMDRENDIE | SDMMC_MASK_CMDSENTIE);
         hw_sdio->dtimer = HW_SDIO_DATATIMEOUT;
         hw_sdio->dlen = data->blks * data->blksize;
         hw_sdio->dctrl = (get_order(data->blksize)<<4) | (data->flags & DATA_DIR_READ ? SDMMC_DCTRL_DTDIR : 0);
         hw_sdio->idmabase0r = (rt_uint32_t)cache_buf;
-        hw_sdio->idmatrlr |= SDMMC_IDMA_IDMAEN;
+        hw_sdio->idmatrlr = SDMMC_IDMA_IDMAEN;
     }
 
     if (resp_type(cmd) == RESP_R2)
@@ -215,20 +215,23 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     /* wait completed */
     rthw_sdio_wait_completed(sdio);
 
+
     /* Waiting for data to be sent to completion */
-//    if (data != RT_NULL)
-//    {
-//        volatile rt_uint32_t count = SDIO_TX_RX_COMPLETE_TIMEOUT_LOOPS;
-//
-//        while (count && (hw_sdio->sta & SDMMC_STA_DPSMACT))
-//        {
-//            count--;
-//        }
-//        if ((count == 0) || (hw_sdio->sta & SDIO_ERRORS))
-//        {
-//            cmd->err = -RT_ERROR;
-//        }
-//    }
+    if (data != RT_NULL)
+    {
+        volatile rt_uint32_t count = 1000000;
+        #define HW_SDIO_DPSMACT                       (0x01U << 12)
+        #define HW_SDIO_CPSMACT                       (0x01U << 13)
+        while (count && (hw_sdio->sta & HW_SDIO_DPSMACT))
+        {
+            count--;
+        }
+        if ((count == 0) || (hw_sdio->sta & SDIO_ERRORS))
+        {
+            cmd->err = -RT_ERROR;
+        }
+    }
+
 
     /* data post configuration */
     if (data != RT_NULL)
@@ -236,7 +239,9 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
         if (data->flags & DATA_DIR_READ)
         {
             rt_memcpy(data->buf, cache_buf, data->blks * data->blksize);
+//#ifdef SCB_EnableDCache
             SCB_CleanInvalidateDCache();
+//#endif
         }
     }
 }
@@ -432,38 +437,26 @@ void SDMMC1_IRQHandler(void)
     rt_interrupt_leave();
 }
 
-void sdmmc_init(void)
+static void sdcard_low_init(void)
 {
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitTypeDef GPIO_Initure;
 
     __HAL_RCC_SDMMC1_CLK_ENABLE();
-
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOD_CLK_ENABLE();
-    /**SDMMC1 GPIO Configuration
-    PC8     ------> SDMMC1_D0
-    PC9     ------> SDMMC1_D1
-    PC10     ------> SDMMC1_D2
-    PC11     ------> SDMMC1_D3
-    PC12     ------> SDMMC1_CK
-    PD2     ------> SDMMC1_CMD
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF12_SDIO1;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-    GPIO_InitStruct.Pin = GPIO_PIN_2;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF12_SDIO1;
-    HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+    /* PC8,9,10,11,12 */
+    GPIO_Initure.Pin=GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
+    GPIO_Initure.Mode=GPIO_MODE_AF_PP;
+    GPIO_Initure.Pull=GPIO_NOPULL;
+    GPIO_Initure.Speed=GPIO_SPEED_FREQ_HIGH;
+    GPIO_Initure.Alternate=GPIO_AF12_SDIO1;
+    HAL_GPIO_Init(GPIOC,&GPIO_Initure);
 
-    /* SDMMC1 interrupt Init */
+    /* PD2 */
+    GPIO_Initure.Pin=GPIO_PIN_2;
+    HAL_GPIO_Init(GPIOD,&GPIO_Initure);
+
     HAL_NVIC_SetPriority(SDMMC1_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(SDMMC1_IRQn);
 }
@@ -472,7 +465,7 @@ int rt_hw_sdio_init(void)
 {
     struct stm32_sdio_des sdio_des;
 
-    sdmmc_init();
+    sdcard_low_init();
 
     host = sdio_host_create(&sdio_des);
     if (host == RT_NULL)
@@ -483,22 +476,25 @@ int rt_hw_sdio_init(void)
     return 0;
 }
 INIT_DEVICE_EXPORT(rt_hw_sdio_init);
+//
+//
+//#include <dfs_fs.h>
+//
+//int mnt_init(void)
+//{
+//    rt_thread_delay(RT_TICK_PER_SECOND);
+//
+//    if (dfs_mount("sd0", "/", "elm", 0, 0) != 0)
+//    {
+//        rt_kprintf("file system mount failed!\n");
+//    }
+//    else
+//    {
+//        rt_kprintf("file system mount success!\n");
+//    }
+//
+//    return 0;
+//}
+//INIT_ENV_EXPORT(mnt_init);
 
-int mnt_init(void)
-{
-    rt_thread_delay(RT_TICK_PER_SECOND);
-
-    if (dfs_mount("sd0", "/", "elm", 0, 0) != 0)
-    {
-        rt_kprintf("file system mount failed!\n");
-    }
-    else
-    {
-        rt_kprintf("file system mount success!\n");
-    }
-
-    return 0;
-}
-INIT_ENV_EXPORT(mnt_init);
-
-//#endif /* BSP_USING_SDMMC */
+#endif /* BSP_USING_SDCARD */

@@ -5,15 +5,17 @@
  *
  * Change Logs:
  * Date           Author         Notes
- * 2019-07-28     Ernest         the first version
+ * 2020-05-15     liuduanfei   first version
  */
 
 #include "board.h"
 #include "drv_wm8978.h"
 #include "drv_sound.h"
-#include "rtthread.h"
+#include <rtthread.h>
 
-#define DRV_DEBUG
+#ifdef BSP_USING_SOUND
+
+//#define DRV_DEBUG
 
 #define DBG_TAG              "drv.sound"
 #ifdef  DRV_DEBUG
@@ -71,26 +73,26 @@ void SAIA_samplerate_set(rt_uint32_t freq)
         return ;
 
     rt_kprintf("%d\n", i);
-    RCC->CR&=~(1<<28);                      //关闭PLL3时钟
-    while(((RCC->CR&(1<<29)))&&(retry<0X1FFF))retry++;//等待PLL3时钟失锁
-    RCC->PLLCKSELR &=~ (0X3F<<20);            //清除DIVM3[5:0]原来的设置
-    RCC->PLLCKSELR |= 25<<20;                 //DIVM3[5:0]=25,设置PLL3的预分频系数
-    temp = RCC->PLL3DIVR;                  //读取PLL3DIVR的值
-    temp &=~ (0xFFFF);                   //清除DIVN和PLL3DIVP原来的设置
-    temp |= (SAI_PSC_TBL[i][1]-1)<<0; //设置DIVN[8:0]
-    temp |= (SAI_PSC_TBL[i][2]-1)<<9; //设置DIVP[6:0]
-    RCC->PLL3DIVR = temp;                  //设置PLL3DIVR寄存器
+    RCC->CR&=~(1<<26);                                //关闭PLL2时钟
+    while(((RCC->CR&(1<<27)))&&(retry<0X1FFF))retry++;//等待PLL2时钟失锁
+    RCC->PLLCKSELR &=~ (0X3F<<12);                    //清除DIVM2[5:0]原来的设置
+    RCC->PLLCKSELR |= 25<<12;                         //DIVM2[5:0]=25,设置PLL2的预分频系数
+    temp = RCC->PLL2DIVR;                             //读取PLL2DIVR的值
+    temp &=~ (0xFFFF);                                //清除DIVN和PLL2DIVP原来的设置
+    temp |= (SAI_PSC_TBL[i][1]-1)<<0;                 //设置DIVN[8:0]
+    temp |= (SAI_PSC_TBL[i][2]-1)<<9;                 //设置DIVP[6:0]
+    RCC->PLL2DIVR = temp;                             //设置PLL2DIVR寄存器
 
-    RCC->PLLCFGR |= 1<<22;                    //DIVP3EN=1,使能pll3_p_ck
-    RCC->CR |= 1<<28;                         //开启PLL3
-    while((RCC->CR&1<<29)==0);              //等待PLL3开启成功.
+    RCC->PLLCFGR |= 1<<19;                            //DIVP2EN=1,使能pll2_p_ck
+    RCC->CR |= 1<<26;                                 //开启PLL2
+    while((RCC->CR&1<<27)==0);                        //等待PLL2开启成功.
 
     temp = sai1->acr1;
-    temp &=~ (0X3F<<20);                   //清除MCKDIV[5:0]设置
-    temp |= (rt_uint32_t)SAI_PSC_TBL[i][3]<<20;    //设置MCKDIV[5:0]
-    temp |= 1<<16;                         //使能SAI1 Block A
-    temp |= 1<<17;                         //使能DMA
-    sai1->acr1 = temp;              //配置MCKDIV[5:0],同时使能SAI1 Block A
+    temp &=~ (0X3F<<20);                               //清除MCKDIV[5:0]设置
+    temp |= (rt_uint32_t)SAI_PSC_TBL[i][3]<<20;        //设置MCKDIV[5:0]
+    temp |= 1<<16;                                     //使能SAI1 Block A
+    temp |= 1<<17;                                     //使能DMA
+    sai1->acr1 = temp;                                 //配置MCKDIV[5:0],同时使能SAI1 Block A
 }
 
 void SAIA_channels_set(rt_uint16_t channels)
@@ -239,6 +241,7 @@ rt_err_t SAIA_tx_dma(void)
 
 void DMA2_Stream3_IRQHandler(void)
 {
+//    rt_kprintf("%s\n",__func__);
     rt_interrupt_enter();
     if(DMA2->LISR&(1<<27))          //DMA2_Steam3,传输完成标志
     {
@@ -524,6 +527,9 @@ int sai_pin(void)
 {
     GPIO_InitTypeDef GPIO_Initure;
 
+    RCC->D2CCIP1R &=~(0x7<<0);
+    RCC->D2CCIP1R |=(0x1<<0);
+
     __HAL_RCC_SAI1_CLK_ENABLE();
 
     __HAL_RCC_GPIOE_CLK_ENABLE();
@@ -538,3 +544,5 @@ int sai_pin(void)
     return 0;
 }
 INIT_BOARD_EXPORT(sai_pin);
+
+#endif /* BSP_USING_SOUND */
